@@ -1,0 +1,147 @@
+---
+title: "Finalproject"
+author: "Sudha"
+date: "2/14/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Final Project.
+
+Summary: We are predicting the classe variable in the data set by:
+ <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>
+ 
+ The required files were provided in the assignment, hence, we are moving forward with the prediction process.
+ 
+On what basis is the model built:
+
+The outcome variable is classe, a factor variable with 5 levels. For this data set, ???participants were asked to perform one set of 10 repetitions of a particular set of exersices in 5 different ways.
+
+Info taken from: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>
+
+Class A <- Exactly according to the specification 
+Class B <- Throwing the elbows to the front 
+Class C <- Lifting the dumbbell only halfway
+Class D <- Lowering the dumbbell only halfway 
+Class E <- Throwing the hips to the front
+
+DECISION for the model fit would be based on the accuracy levels of the models. 
+
+The goal is to select the model with the highest accuracy and lowest out of sample error.
+
+Required packages
+```{r }
+set.seed(0443)
+library("rpart")
+library("caret")
+library("randomForest")
+```
+
+Downloading the Data:
+```{r}
+URLTr <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+URLTe <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(URLTr, destfile = "./Train")
+download.file(URLTe, destfile = "./Test")
+
+Train <- read.csv("./Train")
+Test <- read.csv("./Test")
+
+#Exploratory Data Analysis: dim(Train), dim(Test), names(Train), names(Test)
+
+## To understand the data, we are using a simple barplot
+
+plot(Train$classe)
+```
+
+We see that class A has the highest frequency and class D has the lowest.
+
+Now, I'm partitioning the data so we can fit a model.
+
+DATA PARTITIONING 
+```{r}
+set.seed(0443)
+inTrain <- createDataPartition(y=Train$classe, p = 0.70, list = FALSE)
+Training <- Train[inTrain,]
+Testing <- Train[-inTrain,]
+
+##Again, a little exploratory analysis - dim(Training), dim(Testing)
+```
+
+The data seems to be pretty big, so, cleaning the data:
+
+CLEANING THE DATA
+```{r}
+
+NAV <- grep("name|timestamp|window|X", colnames(Training), value=F) 
+Training1 <- Training[,-NAV] # These column names are not required, so we are removing the above columns.
+Training1[Training1==""] <- NA
+NACOL <- apply(Training1, 2, function(x) sum(is.na(x)))/nrow(Training1)
+Training1 <- Training1[!(NACOL>0.95)] ## This step would remove all the data with 95% above missing values as obviously, they cannot be used for processing
+
+```
+
+Now, we are preprocessing the data as the the variables are over 50
+```{r}
+PPDATA <- preProcess(Training1[,1:52],method="pca",thresh=.8)  
+PPDATA <- preProcess(Training1[,1:52],method="pca",thresh=.9)  
+PPDATA <- preProcess(Training1[,1:52],method="pca",thresh=.95) 
+PPDATA <- preProcess(Training1[,1:52],method="pca",pcaComp=25) 
+PREPDATA <- predict(PPDATA,Training1[,1:52])
+```
+
+Once the data is preprocessed, I'm fitting the required models.
+FITTING MODELS:
+```{r}
+## MODEL1 - RF
+RF  <- randomForest(Training1$classe ~ .,   data=PREPDATA, do.trace=F)
+
+## MODEL2 - RPART
+RP <- rpart(Training1$classe ~ .,   data=PREPDATA)
+
+```
+
+APPLYING ON TESTING SAMPLES:
+```{r}
+## Check with testing DATA
+
+## Cleaning the data as earlier.
+Testing1 <- Testing[,-NAV]
+Testing1[Testing1==""] <- NA
+NACOL <- apply(Testing1, 2, function(x) sum(is.na(x)))/nrow(Testing1)
+Testing1 <- Testing1[!(NACOL>0.95)]
+PREPDATAT <- predict(PPDATA,Testing1[,1:52])
+RPPREDICT <- predict(RP, newdata = PREPDATAT)
+
+## Checking the accuracy:
+confusionMatrix(Testing1$classe,predict(RF,PREPDATAT))
+
+```
+
+WHY RF:
+
+As the accuracy is 97%, I'm going with this model.
+
+Applying the model on the test data:
+```{r}
+
+## As the accuracy is 97%, I'm going with RF
+
+Test1 <- Test[,-NAV]
+Test1[Test1==""] <- NA
+NACOL <- apply(Test1, 2, function(x) sum(is.na(x)))/nrow(Test1)
+Test1 <- Test1[!(NACOL>0.95)]
+TESTPPD <- predict(PPDATA,Test1[,1:52])
+Test1$classe <- predict(RF,TESTPPD)
+confusionMatrix(Test1$classe,predict(RF,TESTPPD))
+predict(RF, newdata = TESTPPD)
+
+## Accuracy - close to 1%, so, I guess the results are right and all the predictions appear class wise.
+```
+
+Conclusion:
+Also, based on the quiz, we see that the model fit was appropriate
